@@ -9,8 +9,8 @@ PDF export of all five pages.
 | Root | `solar_light.kicad_sch` | Sheet index |
 | 1 | `charger.kicad_sch` | MPPT charger power stage (sync buck, ideal diode, shunt, battery) |
 | 2 | `led_driver.kicad_sch` | Boost LED driver, LED disconnect, LED string |
-| 3 | `controller.kicad_sch` | SC95F8523, 10 V and 5 V rails, crystal, NTCs, connectors |
-| 4 | `drivers.kicad_sch` | UCC27211, UCC27511, INA181 x2, LM2901 fault comparators |
+| 3 | `controller.kicad_sch` | SC95F8523, gate-drive supply (VDRV), L78L05 5 V rail, crystal, NTCs, connectors |
+| 4 | `drivers.kicad_sch` | IR2104, UCC27511, INA181 x2, LM4040 reference, LM2901 fault comparators |
 
 ## How it is built
 
@@ -34,11 +34,11 @@ changes will be overwritten the next time it runs.
 ## Symbols
 
 Library symbols (with their pin numbers) come from the KiCad 7 symbol library:
-INA181, LM2901, LM74700, UCC27511ADBV, LT3010, LM2936, and the passive parts.
-Three symbols are custom, in `solar_light.kicad_sym` (registered in `sym-lib-table`):
+IR2104, UCC27511ADBV, INA181, LM2901, LM74700, L78L05, LM4040-2.5, and the
+passive parts. Two symbols are custom, in `solar_light.kicad_sym` (registered
+in `sym-lib-table`):
 
 - **SC95F8523**: pins from the SinOne datasheet V0.3, 28-pin package.
-- **UCC27211**: D-package pinout from TI's datasheet (VDD 1, HB 2, HO 3, HS 4, HI 5, LI 6, VSS 7, LO 8).
 - **BMS_4S**: placeholder for the off-board battery management board.
 
 ## Before layout

@@ -189,19 +189,36 @@ for d in (0.70, 0.85):
     print(f"  at D={d:.2f}: panel voltage step {dv*1e3:.0f} mV")
 
 # ======================================================================
-# SC95F8523 VARIANT (see SC95F8523.md)
+# SC95F8523 VERSION (see SC95F8523.md and kicad/)
 # No on-chip comparator, op-amp or DAC; one PWM period shared by all
-# channels (32 MHz clock); dead time in 125 ns steps; one FLT input.
+# channels (32 MHz clock); one FLT input.
 # ======================================================================
 print("\n" + "#" * 64)
-print("SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)")
+print("SC95F8523 VERSION: both converters at 100 kHz (shared PWM period)")
+
+
+# Parts in the KiCad project (kicad/): IR2104 half-bridge driver for the
+# charger, UCC27511 for the boost switch, both supplied from the battery
+# (VDRV); L78L05 5 V regulator; LM4040-2.5 reference for fault thresholds.
+# IR2104 drive: 130/270 mA minimum (KiCad symbol lists 210/360 mA typical).
+# With Qgs2+Qgd of about 10 nC that gives roughly 77 + 37 = 115 ns of
+# switching edges (conservative, minimum drive). Dead time is fixed inside
+# the IR2104 at about 520 ns. Check both against the IR2104 datasheet.
+IR_EDGE = 115e-9
+IR_DT = 520e-9
+I_5V_RAIL = 0.007        # SC95F8523 4.5 mA + 2x INA181 + LM2901 + LM4040 bias, A
+I_78L05_Q = 0.0045       # L78L05 quiescent current, A (about 3-6 mA)
+I_DRV_Q = 0.0008         # IR2104 + UCC27511 idle supply, A (estimate)
 
 
 def boost_sc95(vin, pout, vled, f=100e3, L=100e-6, sync=False):
+    """Async: UCC27511 drives Q1, D1 rectifies. Sync: a second IR2104
+    drives Q1 (LO) and Q6 (HO), D1 kept for the dead time."""
     iled = pout / vled
     vd = 0.42
     vout = vled + 0.1 * iled + (0.0 if sync else vd)
     d = 1 - vin / vout
+    edge = IR_EDGE if sync else 20e-9
     eff = 0.95
     for _ in range(20):
         iin = pout / eff / vin
@@ -213,28 +230,44 @@ def boost_sc95(vin, pout, vled, f=100e3, L=100e-6, sync=False):
             "inductor DCR (40 mOhm)": irms_l**2 * 0.040,
             "inductor core": 0.06,
             "Q1 conduction (14 mOhm hot)": irms_q**2 * 0.014,
-            "Q1 switching (tr+tf=20 ns)": 0.5 * vout * iin * 20e-9 * f,
+            f"Q1 switching (edges {edge*1e9:.0f} ns)": 0.5 * vout * iin * edge * f,
             "Q1 Coss (300 pF)": 0.5 * 300e-12 * vout**2 * f,
-            "gate drive (25 nC, 10 V)": 25e-9 * 10 * f * (2 if sync else 1),
+            "gate drive (25 nC at VDRV = battery)": 25e-9 * vin * f * (2 if sync else 1),
             "LED sense resistor (0.1 Ohm)": iled**2 * 0.100,
             "switch sense, fault only (33 mOhm)": irms_q**2 * 0.033,
             "LED disconnect FET (20 mOhm)": iled**2 * 0.020,
-            "MCU + 2x INA181 + LM2901 (6 mA)": 0.006 * vin,
-            "gate driver quiescent": 0.010,
+            "5 V rail: loads 7 mA + L78L05 4.5 mA": (I_5V_RAIL + I_78L05_Q) * vin,
+            "gate drivers idle": I_DRV_Q * vin,
             "caps ESR + PCB copper": 0.035,
         }
         if sync:
-            loss["sync FET conduction (14 mOhm hot)"] = irms_sr**2 * 0.014
-            loss["Schottky during 2 x 125 ns dead time"] = 2 * 125e-9 * f * 0.45 * iin
+            loss["Q6 conduction (14 mOhm hot)"] = irms_sr**2 * 0.014
+            loss["D1 during 2 x 520 ns dead time"] = 2 * IR_DT * f * 0.45 * iin
         else:
-            loss["Schottky diode"] = vd * iled
+            loss["Schottky diode D1"] = vd * iled
         ptot = sum(loss.values())
         eff = pout / (pout + ptot)
     return eff, loss, d, iin, di
 
 
+def charger_sc95(pin, vin=18.0, vbat=13.6, f=100e3):
+    """Sync buck driven by the IR2104: slow edges, 520 ns dead time, D2 conducts."""
+    eff, loss, d, iout, di = buck_losses(vin, vbat, pin)
+    loss = dict(loss)
+    loss.pop("high-side FET switching (tr+tf=20 ns)")
+    loss.pop("dead-time body diode (2x20 ns)")
+    loss.pop("gate drive (2x30 nC, 10 V)")
+    loss.pop("PIC + 5 V/10 V rails + gate driver")
+    loss[f"Q3 switching (IR2104 edges {IR_EDGE*1e9:.0f} ns)"] = 0.5 * vin * iout * IR_EDGE * f
+    loss["D2 during 2 x 520 ns dead time"] = 2 * IR_DT * f * 0.45 * iout
+    loss["gate drive (2 x 30 nC at VDRV)"] = 2 * 30e-9 * vbat * f
+    loss["5 V rail + L78L05 + drivers idle"] = (I_5V_RAIL + I_78L05_Q + I_DRV_Q) * vbat
+    ptot = sum(loss.values())
+    return (pin - ptot) / pin, loss
+
+
 for sync in (False, True):
-    name = "synchronous (PWM2/PWM3 pair)" if sync else "asynchronous (PWM2 + Schottky)"
+    name = "synchronous (Q6 + second IR2104)" if sync else "asynchronous (UCC27511 + D1)"
     print(f"\n  Boost, {name}")
     for vin in (BAT_V_MIN, BAT_V_NOM, BAT_V_MAX):
         e, loss, d, iin, di = boost_sc95(vin, P_LED, vled, sync=sync)
@@ -245,14 +278,28 @@ for sync in (False, True):
 e_async, loss_a, *_ = boost_sc95(BAT_V_NOM, P_LED, vled)
 show("  Loss breakdown, async boost at 12.8 V, 20 W", loss_a, P_LED, e_async)
 e_sync = boost_sc95(BAT_V_NOM, P_LED, vled, sync=True)[0]
+print("  With IR2104 edges and dead time the synchronous boost is not better than D1,"
+      " so keep the asynchronous boost.")
 
-# charger with 125 ns minimum dead time and Schottky across Q4
-eff_c2, loss_c2, *_ = buck_losses(18.0, 13.6, 80)
-iout = 80 * eff_c2 / 13.6
-old_dt = 2 * 20e-9 * 100e3 * 0.8 * iout
-new_dt = 2 * 125e-9 * 100e3 * 0.45 * iout
-eff_c2 = (80 - (sum(loss_c2.values()) - old_dt + new_dt)) / 80
-print(f"\n  Charger with 125 ns dead time + Schottky across Q4: {eff_c2*100:.2f} % at 80 W")
+print("\n  Charger, IR2104 driving Q3/Q4 (sync buck, 100 kHz)")
+for pin in (80, 40, 16):
+    e, l = charger_sc95(pin)
+    print(f"    {pin:3d} W from the panel: {e*100:.2f} %  (loss {sum(l.values()):.2f} W)")
+eff_c2, loss_c2 = charger_sc95(80)
+show("  Loss breakdown, charger at 80 W, 18 V -> 13.6 V", loss_c2, 80, eff_c2)
+print("  Below about 0.2 A charge current, firmware stops switching with IR2104 SD"
+      " (the IR2104 cannot hold Q4 off while Q3 switches).")
+
+print("\n  Standby and energy budget, SC95F8523 version")
+p_stby = (I_5V_RAIL + I_78L05_Q + I_DRV_Q) * BAT_V_NOM
+print(f"    always-on draw: {p_stby*1e3:.0f} mW ({p_stby*24:.1f} Wh/day), "
+      f"of which L78L05 quiescent {I_78L05_Q*BAT_V_NOM*1e3:.0f} mW ({I_78L05_Q*BAT_V_NOM*24:.1f} Wh/day)")
+e_led = sum(h * fr * P_LED for h, fr in PROFILE)
+e_drv = boost_sc95(BAT_V_NOM, P_LED * 0.6, vled)[0]   # includes rail power during the night
+night = sum(h for h, _ in PROFILE)
+e_bat = e_led / e_drv + p_stby * (24 - night)
+print(f"    battery draw per 24 h: {e_bat:.0f} Wh -> autonomy "
+      f"{BAT_V_NOM * BAT_AH * DOD / e_bat:.2f} nights")
 
 print("\n  Duty resolution and dithering (32 MHz / 100 kHz = 320 counts)")
 d = 1 - BAT_V_NOM / (vled + 0.48)
@@ -268,16 +315,32 @@ f0 = (1 - d) / (2 * 3.14159 * sqrt(100e-6 * cout))
 print(f"    output LC double pole about {f0/1e3:.1f} kHz; firmware loop 10 kHz, crossover 100-200 Hz")
 print(f"    dither in PWM interrupt at 100 kHz -> 4-bit pattern repeats at >= 6.25 kHz,"
       f" above the {f0/1e3:.1f} kHz LC pole, so the output filter smooths it")
+dmax = 13.6 / 15.5                        # buck duty at a hot 36-cell panel (Vmp 15.5 V)
+print(f"    charger: hot-panel duty {dmax:.3f} + IR2104 dead time {IR_DT*1e5:.3f}"
+      f" = {dmax + IR_DT*1e5:.3f} of the period on the IN pin; Q4 stays on for "
+      f"{((1 - dmax) * 10e-6 - 2 * IR_DT) * 1e9:.0f} ns per cycle (bootstrap refresh)")
 
 print("\n  ADC (12-bit, 2.048 V internal reference)")
 lsb = 2.048 / 4096
 for name, v in (("Iled full (INA181A1 x20, 0.1 Ohm)", 0.565 * 0.1 * 20),
                 ("Iled 30 %", 0.3 * 0.565 * 0.1 * 20),
                 ("Ichg 5.8 A (INA181A3 x100, 2 mOhm, REF=GND)", 5.8 * 0.002 * 100),
-                ("Ichg 0.3 A low-current threshold", 0.3 * 0.002 * 100)):
+                ("Ichg 0.2 A switching-stop threshold", 0.2 * 0.002 * 100)):
     print(f"    {name:<46s} {v:5.3f} V = {v/lsb:5.0f} counts")
 
-print("\n  Chain efficiency, SC95F8523 variant")
+print("\n  Fault thresholds from VREF25 (LM4040-2.5) instead of the L78L05 rail")
+for nm, r1, r2, scale, unit in (("REF_A boost switch", 21.0, 1.0, 1 / 0.033, "A"),
+                                ("REF_B LED OVP", 3.01, 10, 22.5, "V"),
+                                ("REF_C charge OC", 8.06, 10, 1 / (0.002 * 100), "A"),
+                                ("REF_D battery OV", 6.81, 10, 10.1, "V")):
+    ref = 2.5 * r2 / (r1 + r2)
+    lo, hi = ref * 0.98 * scale, ref * 1.02 * scale          # 0.5 % ref + 1 % resistors, rough
+    print(f"    {nm:<20s} {ref:.4f} V -> {ref*scale:5.2f} {unit} "
+          f"(about {lo:.2f}-{hi:.2f} {unit})")
+print(f"    same battery OV divider fed from 5 V +/-5 %: "
+      f"{1.484*0.95*10.1:.2f}-{1.484*1.05*10.1:.2f} V (low end is below the 14.4 V charge voltage)")
+
+print("\n  Chain efficiency, SC95F8523 version")
 for label, e in (("async boost", e_async), ("sync boost", e_sync)):
     print(f"    {label}: battery->LED {e*100:.1f} %, panel->LED incl. battery "
           f"{0.99*eff_c2*BAT_ROUNDTRIP*e*100:.1f} %")

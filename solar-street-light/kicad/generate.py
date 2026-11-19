@@ -7,8 +7,7 @@ data. The script writes:
   solar_light.kicad_pro / .kicad_sch (root)   project and root sheet
   charger.kicad_sch, led_driver.kicad_sch,     the four sub-sheets
   controller.kicad_sch, drivers.kicad_sch
-  solar_light.kicad_sym + sym-lib-table        custom symbols (SC95F8523,
-                                               UCC27211, BMS)
+  solar_light.kicad_sym + sym-lib-table        custom symbols (SC95F8523, BMS)
 
 Connections are made with a short wire from each pin to a global label or
 a power symbol, so the netlist is exactly the PIN->NET table below.
@@ -226,18 +225,18 @@ S2_NOTES = [
      '- R14: Kelvin connect ILED_P and the R14 ground pad to U6 IN+ / IN-.\n'
      '- R5/R6: ADC reading of the LED voltage and the 43.3 V over-voltage trip.\n'
      '- Optional synchronous boost: Q6 (60 V, <=14 mOhm) across D1, gate from PWM3 through a '
-     'second UCC27211; keep D1 for the dead time.', 1.5),
+     'second IR2104 (its LO/HO pair gives the dead time); keep D1 across Q6.', 1.5),
 ]
 
 # ---------------------------------------------------------------------------
 # Sheet 3: SC95F8523, supplies, connectors
 # ---------------------------------------------------------------------------
 U1_PINS = {'1': '+5V', '2': NC, '3': 'GND', '4': 'XIN', '5': 'XOUT', '6': 'RST',
-           '7': 'TCK', '8': 'TDIO', '9': 'PIR_IN', '10': 'LED_EN', '11': 'V10_SNS',
+           '7': 'TCK', '8': 'TDIO', '9': 'PIR_IN', '10': 'LED_EN', '11': NC,
            '12': 'NTC_LED', '13': 'NTC_BAT', '14': 'VLED_SNS', '15': 'ILED',
            '16': 'ICHG', '17': 'VBAT_SNS', '18': 'VPV_SNS', '19': 'RXD', '20': 'TXD',
-           '21': NC, '22': NC, '23': 'EN_10V', '24': 'FLT', '25': NC, '26': 'IN_B',
-           '27': 'LI', '28': 'HI'}
+           '21': NC, '22': NC, '23': NC, '24': 'FLT', '25': NC, '26': 'IN_B',
+           '27': 'BUCK_SD', '28': 'BUCK_IN'}
 S3 = [
     Comp('U1', 'solar_light:SC95F8523', 'SC95F8523 (SOP28)', 101.6, 104.14, 0, U1_PINS, SOIC28W,
          refpos=((76.2, 82.55), (76.2, 125.73))),
@@ -248,24 +247,17 @@ S3 = [
          refpos=((99.06, 166.37), (96.52, 177.8))),
     C('C25', '12p', 86.36, 200.66, 'XIN', 'GND'),
     C('C26', '12p', 116.84, 200.66, 'XOUT', 'GND'),
-    # 10 V gate-drive rail
-    Comp('U8', 'Regulator_Linear:LT3010', 'LT3010EMS8E', 213.36, 66.04, 0,
-         {'1': '+10V', '2': 'ADJ10', '3': NC, '4': 'GND', '5': 'EN_10V', '6': NC,
-          '7': NC, '8': 'VBAT', '9': 'GND'},
-         'Package_SO:MSOP-8-1EP_3x3mm_P0.65mm_EP1.68x1.88mm',
-         refpos=((205.74, 57.15), (226.06, 78.74))),
-    C('C27', '1u 50V', 180.34, 83.82, 'VBAT', 'GND', fp=C1206),
-    R('R25', '100k', 193.04, 99.06, 'EN_10V', 'GND'),
-    R('R7', '169k 1%', 251.46, 55.88, '+10V', 'ADJ10'),
-    R('R8', '24.9k 1%', 251.46, 91.44, 'ADJ10', 'GND'),
-    C('C28', '2.2u 25V', 266.7, 76.2, '+10V', 'GND', fp=C1206),
-    *divider('R26', 'R27', 'C29', '47k', '10k', 289.56, 55.88, '+10V', 'V10_SNS'),
+    # gate-drive supply: battery through an RC filter (IR2104 needs 10-20 V)
+    R('R47', '10', 205.74, 66.04, 'VBAT', 'VDRV', rot=90, fp=R0603),
+    C('C49', '10u 25V', 223.52, 78.74, 'VDRV', 'GND', fp=C1206),
+    C('C50', '100n', 238.76, 78.74, 'VDRV', 'GND'),
+    FLAG('#FLG04', 254.0, 60.96, 'VDRV'),
     # 5 V logic rail
-    Comp('U9', 'Regulator_Linear:LM2936-5.0', 'LM2936MP-5.0', 213.36, 134.62, 0,
-         {'1': 'VBAT', '2': 'GND', '3': '+5V'}, SOT223,
+    Comp('U9', 'Regulator_Linear:L78L05_SOT89', 'L78L05 (LM78L05)', 213.36, 134.62, 0,
+         {'1': '+5V', '2': 'GND', '3': 'VBAT'}, 'Package_TO_SOT_SMD:SOT-89-3',
          refpos=((199.39, 127.0), (208.28, 127.0))),
     C('C30', '1u 50V', 187.96, 144.78, 'VBAT', 'GND', fp=C1206),
-    CP('C31', '10u tant', 238.76, 144.78, '+5V', 'GND', fp=TANT_A),
+    C('C31', '10u 16V', 238.76, 144.78, '+5V', 'GND', fp=C1206),
     # NTCs
     R('R10', '100k 1%', 330.2, 152.4, '+5V', 'NTC_BAT'),
     C('C32', '100n', 342.9, 175.26, 'NTC_BAT', 'GND'),
@@ -294,15 +286,16 @@ S3 = [
 S3_NOTES = [
     (25.4, 30.48, 'Sheet 3: SC95F8523 controller, supplies and connectors. '
      'Pin numbers: SOP28/TSSOP28 (SinOne datasheet V0.3).', 2.0),
-    (172.72, 40.64, '10 V gate-drive rail: Vout = 1.275 V x (1 + R7/R8) = 9.93 V.\n'
-     'P0.5 (EN_10V) turns it on; R25 keeps it off during reset.', 1.5),
-    (172.72, 116.84, '5 V logic rail, always on (15 uA quiescent).\n'
-     'C31: use the ESR range in the LM2936 datasheet.', 1.5),
+    (172.72, 40.64, 'Gate-drive supply VDRV = battery (11.2-14.6 V) through R47/C49.\n'
+     'IR2104 needs 10-20 V on VCC (UVLO about 8-9.8 V), so no regulator.', 1.5),
+    (172.72, 116.84, '5 V logic rail, always on. L78L05: about 3-6 mA quiescent, +/-5 %.\n'
+     'ADC uses the internal 2.048 V reference; fault thresholds use U10 (sheet 4).', 1.5),
     (320.04, 137.16, 'NTC inputs: 100k pull-up, 10k B3950 NTC (off-board),\n'
      '12-bit ADC with 2.048 V reference.', 1.5),
     (25.4, 238.76,
      'Notes\n'
-     '- Unused pins P1.0, P0.6, P0.7 and PWM3: set as outputs driven low in firmware.\n'
+     '- Unused pins P1.0, P1.6, P0.5, P0.6, P0.7 and PWM3: set as outputs driven low in firmware.\n'
+     '- NTC readings scale with the 5 V rail: correct them with the internal 1/4 VDD ADC channel.\n'
      '- C25/C26: use the load capacitance from the crystal datasheet (typ. 10-15 pF).\n'
      '- Every ADC divider has 100 nF at the divider. Analog ground (dividers, NTCs, U5/U6) joins '
      'power ground at one point near R14.\n'
@@ -313,22 +306,24 @@ S3_NOTES = [
 # Sheet 4: gate drivers, current sense, fault comparators
 # ---------------------------------------------------------------------------
 S4 = [
-    Comp('U4', 'solar_light:UCC27211', 'UCC27211D', 76.2, 76.2, 0,
-         {'1': '+10V', '2': 'HB', '3': 'HO_DRV', '4': 'SW_C', '5': 'HI', '6': 'LI',
-          '7': 'GND', '8': 'LO_DRV'}, SOIC8, refpos=((68.58, 66.04), (68.58, 86.36))),
-    R('R29', '10k', 35.56, 106.68, 'HI', 'GND'),
-    R('R30', '10k', 48.26, 106.68, 'LI', 'GND'),
-    C('C34', '1u 25V', 30.48, 50.8, '+10V', 'GND', fp=C1206),
-    C('C35', '100n', 45.72, 50.8, '+10V', 'GND'),
-    R('R31', '2.2', 127.0, 60.96, 'HO_DRV', 'HO', rot=90),
+    Comp('U4', 'Driver_FET:IR2104', 'IR2104S', 76.2, 76.2, 0,
+         {'1': 'VDRV', '2': 'BUCK_IN', '3': 'BUCK_SD', '4': 'GND', '5': 'LO_DRV', '6': 'SW_C',
+          '7': 'HO_DRV', '8': 'HB'}, SOIC8),
+    R('R29', '10k', 35.56, 106.68, 'BUCK_IN', 'GND'),
+    R('R30', '10k', 48.26, 106.68, 'BUCK_SD', 'GND'),
+    C('C34', '1u 25V', 30.48, 50.8, 'VDRV', 'GND', fp=C1206),
+    C('C35', '100n', 45.72, 50.8, 'VDRV', 'GND'),
+    Comp('D16', 'Device:D', 'ES1D (bootstrap)', 132.08, 50.8, 0, {'1': 'HB', '2': 'VDRV'},
+         'Diode_SMD:D_SMA'),
+    R('R31', '2.2', 127.0, 71.12, 'HO_DRV', 'HO', rot=90),
     R('R32', '2.2', 127.0, 96.52, 'LO_DRV', 'LO', rot=90),
-    C('C36', '100n 25V', 152.4, 78.74, 'HB', 'SW_C'),
+    C('C36', '100n 25V', 152.4, 81.28, 'HB', 'SW_C'),
     Comp('U7', 'Driver_FET:UCC27511ADBV', 'UCC27511ADBV', 76.2, 152.4, 0,
-         {'1': '+10V', '2': 'OUTH_B', '3': 'OUTL_B', '4': 'GND', '5': 'GND', '6': 'IN_B'},
+         {'1': 'VDRV', '2': 'OUTH_B', '3': 'OUTL_B', '4': 'GND', '5': 'GND', '6': 'IN_B'},
          'Package_TO_SOT_SMD:SOT-23-6', refpos=((88.9, 140.97), (88.9, 165.1))),
     R('R33', '10k', 45.72, 172.72, 'IN_B', 'GND'),
-    C('C37', '1u 25V', 30.48, 139.7, '+10V', 'GND', fp=C1206),
-    C('C38', '100n', 45.72, 139.7, '+10V', 'GND'),
+    C('C37', '1u 25V', 30.48, 139.7, 'VDRV', 'GND', fp=C1206),
+    C('C38', '100n', 45.72, 139.7, 'VDRV', 'GND'),
     R('R34', '4.7', 127.0, 142.24, 'OUTH_B', 'GATE_B', rot=90),
     R('R35', '2.2', 127.0, 165.1, 'OUTL_B', 'GATE_B', rot=90),
     # current sense
@@ -360,25 +355,33 @@ S4 = [
     # ISW filter
     R('R38', '100', 299.72, 55.88, 'ISW', 'ISW_F', rot=90),
     C('C44', '1n', 317.5, 68.58, 'ISW_F', 'GND'),
-    # threshold dividers (from +5 V)
-    *divider('R39', 'R40', 'C45', '43k 1%', '1.0k 1%', 289.56, 101.6, '+5V', 'REF_A'),
-    *divider('R41', 'R42', 'C46', '16k 1%', '10k 1%', 314.96, 101.6, '+5V', 'REF_B'),
-    *divider('R43', 'R44', 'C47', '26k 1%', '10k 1%', 340.36, 101.6, '+5V', 'REF_C'),
-    *divider('R45', 'R46', 'C48', '23.7k 1%', '10k 1%', 365.76, 101.6, '+5V', 'REF_D'),
+    # 2.5 V reference for the fault thresholds
+    R('R48', '3.0k', 391.16, 60.96, '+5V', 'VREF25'),
+    Comp('U10', 'Reference_Voltage:LM4040DBZ-2.5', 'LM4040-2.5', 391.16, 93.98, 90,
+         {'1': 'VREF25', '2': 'GND'}, SOT23, refpos=((394.97, 92.71), (394.97, 95.25))),
+    C('C51', '100n', 378.46, 93.98, 'VREF25', 'GND'),
+    # threshold dividers (from VREF25)
+    *divider('R39', 'R40', 'C45', '21.0k 1%', '1.0k 1%', 289.56, 101.6, 'VREF25', 'REF_A'),
+    *divider('R41', 'R42', 'C46', '3.01k 1%', '10k 1%', 314.96, 101.6, 'VREF25', 'REF_B'),
+    *divider('R43', 'R44', 'C47', '8.06k 1%', '10k 1%', 340.36, 101.6, 'VREF25', 'REF_C'),
+    *divider('R45', 'R46', 'C48', '6.81k 1%', '10k 1%', 365.76, 101.6, 'VREF25', 'REF_D'),
 ]
 S4_NOTES = [
     (25.4, 30.48, 'Sheet 4: gate drivers, current sense and fault comparators', 2.0),
-    (284.48, 160.02, 'Fault thresholds (dividers from +5V):\n'
+    (284.48, 160.02, 'Fault thresholds (dividers from VREF25 = 2.500 V, U10):\n'
      'REF_A 0.114 V = 3.4 A in R13 (boost switch)\n'
-     'REF_B 1.92 V = 43.3 V on VLED\n'
-     'REF_C 1.39 V = 6.9 A charge current\n'
-     'REF_D 1.48 V = 15.0 V battery', 1.5),
+     'REF_B 1.92 V = 43.2 V on VLED\n'
+     'REF_C 1.38 V = 6.9 A charge current\n'
+     'REF_D 1.49 V = 15.0 V battery\n'
+     'U10 current: about 0.24 mA (R48 0.83 mA minus 0.59 mA in the dividers)', 1.5),
     (25.4, 185.42, 'U2 LM2901: open-collector outputs wired together on FLT (U1 pin 24, active low, '
      'latched, 1 us filter). Signal on -, threshold on +, so a fault pulls FLT low.', 1.5),
     (25.4, 233.68,
      'Notes\n'
-     '- R29, R30, R33: PWM pins go high-impedance on a FLT fault; these keep the drivers off.\n'
-     '- U4 HS pin is SW_C (sheet 1). C36 is the bootstrap cap, 100 nF (UCC27211 datasheet: 22-100 nF typical).\n'
+     '- R29, R30, R33: PWM pins go high-impedance on a FLT fault; these keep the drivers off (SD low = both FETs off).\n'
+     '- U4 IR2104: IN = PWM0 (high = Q3 on, low = Q4 on), SD = P0.1 as GPIO. Dead time (about 520 ns) is set inside U4.\n'
+     '   It cannot hold Q4 off while Q3 switches: below about 0.2 A charge current, firmware stops switching with SD.\n'
+     '- U4 VS pin is SW_C (sheet 1). D16 (ultrafast, >=100 V) and C36 (100 nF) form the bootstrap supply.\n'
      '- U7 split outputs: R34 sets turn-on speed, R35 turn-off.\n'
      '- U5: charge current 5.8 A -> 1.16 V, 7 A -> 1.40 V.  U6: LED current 0.565 A -> 1.13 V.\n'
      '- U6 IN- (pin 4) must be Kelvin-routed to the ground pad of R14, not to the nearest ground.', 1.5),
@@ -439,21 +442,6 @@ def custom_symbols():
         + '(symbol "SC95F8523_0_1" (rectangle (start -20.32 19.05) (end 20.32 -19.05) '
           '(stroke (width 0.254) (type default)) (fill (type background))))'
         + '(symbol "SC95F8523_1_1" ' + ' '.join(pins) + '))')
-    # UCC27211 (D package pinout, TI datasheet table 4-1)
-    upins = [pin('input', -12.7, 3.81, 0, 'HI', '5'), pin('input', -12.7, 1.27, 0, 'LI', '6'),
-             pin('power_in', -12.7, -1.27, 0, 'VDD', '1'), pin('power_in', -12.7, -3.81, 0, 'VSS', '7'),
-             pin('passive', 12.7, 3.81, 180, 'HB', '2'), pin('output', 12.7, 1.27, 180, 'HO', '3'),
-             pin('passive', 12.7, -1.27, 180, 'HS', '4'), pin('output', 12.7, -3.81, 180, 'LO', '8')]
-    out['UCC27211'] = (
-        '(symbol "UCC27211" (pin_names (offset 1.016)) (in_bom yes) (on_board yes) '
-        + prop('Reference', 'U', -7.62, 7.62, justify='left')
-        + prop('Value', 'UCC27211', -7.62, -7.62, justify='left')
-        + prop('Footprint', SOIC8, 0, -10.16, hide=True)
-        + prop('Datasheet', 'https://www.ti.com/lit/ds/symlink/ucc27211.pdf', 0, -12.7, hide=True)
-        + prop('ki_description', '120 V boot, 4 A half-bridge driver, integrated bootstrap diode', 0, 0, hide=True)
-        + '(symbol "UCC27211_0_1" (rectangle (start -7.62 6.35) (end 7.62 -6.35) '
-          '(stroke (width 0.254) (type default)) (fill (type background))))'
-        + '(symbol "UCC27211_1_1" ' + ' '.join(upins) + '))')
     # BMS (off-board)
     out['BMS_4S'] = (
         '(symbol "BMS_4S" (pin_names (offset 1.016) hide) (in_bom no) (on_board no) '

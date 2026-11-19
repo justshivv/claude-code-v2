@@ -80,40 +80,64 @@ CHARGER PWM RESOLUTION (firmware duty control)
   at D=0.85: panel voltage step 59 mV
 
 ################################################################
-SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)
+SC95F8523 VERSION: both converters at 100 kHz (shared PWM period)
 
-  Boost, asynchronous (PWM2 + Schottky)
-    Vin 11.2 V  D=0.688  Ipk=2.24 A  dI=0.77 A  eff=96.11 %
-    Vin 12.8 V  D=0.643  Ipk=2.03 A  dI=0.82 A  eff=96.40 %
-    Vin 14.4 V  D=0.599  Ipk=1.87 A  dI=0.86 A  eff=96.59 %
-     50 % brightness  eff=95.84 %
-     30 % brightness  eff=94.66 %
+  Boost, asynchronous (UCC27511 + D1)
+    Vin 11.2 V  D=0.688  Ipk=2.25 A  dI=0.77 A  eff=95.80 %
+    Vin 12.8 V  D=0.643  Ipk=2.04 A  dI=0.82 A  eff=96.03 %
+    Vin 14.4 V  D=0.599  Ipk=1.88 A  dI=0.86 A  eff=96.16 %
+     50 % brightness  eff=95.12 %
+     30 % brightness  eff=93.51 %
 
-  Boost, synchronous (PWM2/PWM3 pair)
-    Vin 11.2 V  D=0.684  Ipk=2.22 A  dI=0.77 A  eff=96.96 %
-    Vin 12.8 V  D=0.639  Ipk=2.02 A  dI=0.82 A  eff=97.28 %
-    Vin 14.4 V  D=0.594  Ipk=1.85 A  dI=0.86 A  eff=97.48 %
-     50 % brightness  eff=96.64 %
-     30 % brightness  eff=95.30 %
+  Boost, synchronous (Q6 + second IR2104)
+    Vin 11.2 V  D=0.684  Ipk=2.27 A  dI=0.77 A  eff=94.82 %
+    Vin 12.8 V  D=0.639  Ipk=2.05 A  dI=0.82 A  eff=95.29 %
+    Vin 14.4 V  D=0.594  Ipk=1.88 A  dI=0.86 A  eff=95.59 %
+     50 % brightness  eff=94.34 %
+     30 % brightness  eff=92.55 %
 
   Loss breakdown, async boost at 12.8 V, 20 W
-  inductor DCR (40 mOhm)                     107.3 mW
+  inductor DCR (40 mOhm)                     108.1 mW
   inductor core                               60.0 mW
-  Q1 conduction (14 mOhm hot)                 23.7 mW
-  Q1 switching (tr+tf=20 ns)                  58.1 mW
+  Q1 conduction (14 mOhm hot)                 23.8 mW
+  Q1 switching (edges 20 ns)                  58.4 mW
   Q1 Coss (300 pF)                            19.3 mW
-  gate drive (25 nC, 10 V)                    25.0 mW
+  gate drive (25 nC at VDRV = battery)        32.0 mW
   LED sense resistor (0.1 Ohm)                31.9 mW
-  switch sense, fault only (33 mOhm)          55.8 mW
+  switch sense, fault only (33 mOhm)          56.2 mW
   LED disconnect FET (20 mOhm)                 6.4 mW
-  MCU + 2x INA181 + LM2901 (6 mA)             76.8 mW
-  gate driver quiescent                       10.0 mW
+  5 V rail: loads 7 mA + L78L05 4.5 mA       147.2 mW
+  gate drivers idle                           10.2 mW
   caps ESR + PCB copper                       35.0 mW
-  Schottky diode                             237.3 mW
-  TOTAL                                      746.6 mW
-  efficiency 96.40 %
+  Schottky diode D1                          237.3 mW
+  TOTAL                                      825.9 mW
+  efficiency 96.03 %
+  With IR2104 edges and dead time the synchronous boost is not better than D1, so keep the asynchronous boost.
 
-  Charger with 125 ns dead time + Schottky across Q4: 98.39 % at 80 W
+  Charger, IR2104 driving Q3/Q4 (sync buck, 100 kHz)
+     80 W from the panel: 97.41 %  (loss 2.07 W)
+     40 W from the panel: 97.37 %  (loss 1.05 W)
+     16 W from the panel: 96.10 %  (loss 0.62 W)
+
+  Loss breakdown, charger at 80 W, 18 V -> 13.6 V
+  high-side FET conduction (7 mOhm hot)      177.4 mW
+  low-side FET conduction (7 mOhm hot)        57.4 mW
+  inductor DCR (12 mOhm)                     404.8 mW
+  inductor core                              120.0 mW
+  charge sense shunt (2 mOhm)                 67.1 mW
+  ideal-diode FET (4 mOhm)                    79.0 mW
+  caps ESR + PCB copper                       50.0 mW
+  Q3 switching (IR2104 edges 115 ns)         599.4 mW
+  D2 during 2 x 520 ns dead time             271.0 mW
+  gate drive (2 x 30 nC at VDRV)              81.6 mW
+  5 V rail + L78L05 + drivers idle           167.3 mW
+  TOTAL                                     2074.9 mW
+  efficiency 97.41 %
+  Below about 0.2 A charge current, firmware stops switching with IR2104 SD (the IR2104 cannot hold Q4 off while Q3 switches).
+
+  Standby and energy budget, SC95F8523 version
+    always-on draw: 157 mW (3.8 Wh/day), of which L78L05 quiescent 58 mW (1.4 Wh/day)
+    battery draw per 24 h: 144 Wh -> autonomy 2.40 nights
 
   Duty resolution and dithering (32 MHz / 100 kHz = 320 counts)
     one count: Vout step 314 mV -> LED current step 52 mA without dithering
@@ -121,13 +145,21 @@ SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)
     6-bit sigma-delta dither: 0.8 mA effective step
     output LC double pole about 1.3 kHz; firmware loop 10 kHz, crossover 100-200 Hz
     dither in PWM interrupt at 100 kHz -> 4-bit pattern repeats at >= 6.25 kHz, above the 1.3 kHz LC pole, so the output filter smooths it
+    charger: hot-panel duty 0.877 + IR2104 dead time 0.052 = 0.929 of the period on the IN pin; Q4 stays on for 186 ns per cycle (bootstrap refresh)
 
   ADC (12-bit, 2.048 V internal reference)
     Iled full (INA181A1 x20, 0.1 Ohm)              1.130 V =  2260 counts
     Iled 30 %                                      0.339 V =   678 counts
     Ichg 5.8 A (INA181A3 x100, 2 mOhm, REF=GND)    1.160 V =  2320 counts
-    Ichg 0.3 A low-current threshold               0.060 V =   120 counts
+    Ichg 0.2 A switching-stop threshold            0.040 V =    80 counts
 
-  Chain efficiency, SC95F8523 variant
-    async boost: battery->LED 96.4 %, panel->LED incl. battery 90.1 %
-    sync boost: battery->LED 97.3 %, panel->LED incl. battery 91.0 %
+  Fault thresholds from VREF25 (LM4040-2.5) instead of the L78L05 rail
+    REF_A boost switch   0.1136 V ->  3.44 A (about 3.37-3.51 A)
+    REF_B LED OVP        1.9216 V -> 43.24 V (about 42.37-44.10 V)
+    REF_C charge OC      1.3843 V ->  6.92 A (about 6.78-7.06 A)
+    REF_D battery OV     1.4872 V -> 15.02 V (about 14.72-15.32 V)
+    same battery OV divider fed from 5 V +/-5 %: 14.24-15.74 V (low end is below the 14.4 V charge voltage)
+
+  Chain efficiency, SC95F8523 version
+    async boost: battery->LED 96.0 %, panel->LED incl. battery 88.9 %
+    sync boost: battery->LED 95.3 %, panel->LED incl. battery 88.2 %

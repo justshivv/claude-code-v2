@@ -21,7 +21,7 @@ sys.path.insert(0, HERE)
 from sexp import parse  # noqa: E402
 
 FPDIR = os.environ.get('KICAD_FOOTPRINT_DIR', '/usr/share/kicad/footprints')
-FLAGGED = {'VPV', 'VBAT', 'GND'}   # nets carrying a PWR_FLAG in the schematic
+FLAGGED = {'VPV', 'VBAT', 'GND', 'VDRV'}   # nets carrying a PWR_FLAG in the schematic
 
 
 def find(tree, key):
