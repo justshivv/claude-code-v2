@@ -125,7 +125,8 @@ SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)
   ADC (12-bit, 2.048 V internal reference)
     Iled full (INA181A1 x20, 0.1 Ohm)              1.130 V =  2260 counts
     Iled 30 %                                      0.339 V =   678 counts
-    Ichg 5.8 A (INA181A1 x20, 2 mOhm) + 0.3 V REF  0.532 V =  1064 counts
+    Ichg 5.8 A (INA181A3 x100, 2 mOhm, REF=GND)    1.160 V =  2320 counts
+    Ichg 0.3 A low-current threshold               0.060 V =   120 counts
 
   Chain efficiency, SC95F8523 variant
     async boost: battery->LED 96.4 %, panel->LED incl. battery 90.1 %

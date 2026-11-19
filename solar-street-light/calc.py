@@ -273,7 +273,8 @@ print("\n  ADC (12-bit, 2.048 V internal reference)")
 lsb = 2.048 / 4096
 for name, v in (("Iled full (INA181A1 x20, 0.1 Ohm)", 0.565 * 0.1 * 20),
                 ("Iled 30 %", 0.3 * 0.565 * 0.1 * 20),
-                ("Ichg 5.8 A (INA181A1 x20, 2 mOhm) + 0.3 V REF", 5.8 * 0.002 * 20 + 0.3)):
+                ("Ichg 5.8 A (INA181A3 x100, 2 mOhm, REF=GND)", 5.8 * 0.002 * 100),
+                ("Ichg 0.3 A low-current threshold", 0.3 * 0.002 * 100)):
     print(f"    {name:<46s} {v:5.3f} V = {v/lsb:5.0f} counts")
 
 print("\n  Chain efficiency, SC95F8523 variant")
