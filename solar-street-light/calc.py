@@ -187,3 +187,96 @@ vb = 13.6
 for d in (0.70, 0.85):
     dv = vb / d - vb / (d + 1 / steps)
     print(f"  at D={d:.2f}: panel voltage step {dv*1e3:.0f} mV")
+
+# ======================================================================
+# SC95F8523 VARIANT (see SC95F8523.md)
+# No on-chip comparator, op-amp or DAC; one PWM period shared by all
+# channels (32 MHz clock); dead time in 125 ns steps; one FLT input.
+# ======================================================================
+print("\n" + "#" * 64)
+print("SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)")
+
+
+def boost_sc95(vin, pout, vled, f=100e3, L=100e-6, sync=False):
+    iled = pout / vled
+    vd = 0.42
+    vout = vled + 0.1 * iled + (0.0 if sync else vd)
+    d = 1 - vin / vout
+    eff = 0.95
+    for _ in range(20):
+        iin = pout / eff / vin
+        di = vin * d / (f * L)
+        irms_l = sqrt(iin**2 + di**2 / 12)
+        irms_q = iin * sqrt(d)
+        irms_sr = iin * sqrt(1 - d)
+        loss = {
+            "inductor DCR (40 mOhm)": irms_l**2 * 0.040,
+            "inductor core": 0.06,
+            "Q1 conduction (14 mOhm hot)": irms_q**2 * 0.014,
+            "Q1 switching (tr+tf=20 ns)": 0.5 * vout * iin * 20e-9 * f,
+            "Q1 Coss (300 pF)": 0.5 * 300e-12 * vout**2 * f,
+            "gate drive (25 nC, 10 V)": 25e-9 * 10 * f * (2 if sync else 1),
+            "LED sense resistor (0.1 Ohm)": iled**2 * 0.100,
+            "switch sense, fault only (33 mOhm)": irms_q**2 * 0.033,
+            "LED disconnect FET (20 mOhm)": iled**2 * 0.020,
+            "MCU + 2x INA181 + LM2901 (6 mA)": 0.006 * vin,
+            "gate driver quiescent": 0.010,
+            "caps ESR + PCB copper": 0.035,
+        }
+        if sync:
+            loss["sync FET conduction (14 mOhm hot)"] = irms_sr**2 * 0.014
+            loss["Schottky during 2 x 125 ns dead time"] = 2 * 125e-9 * f * 0.45 * iin
+        else:
+            loss["Schottky diode"] = vd * iled
+        ptot = sum(loss.values())
+        eff = pout / (pout + ptot)
+    return eff, loss, d, iin, di
+
+
+for sync in (False, True):
+    name = "synchronous (PWM2/PWM3 pair)" if sync else "asynchronous (PWM2 + Schottky)"
+    print(f"\n  Boost, {name}")
+    for vin in (BAT_V_MIN, BAT_V_NOM, BAT_V_MAX):
+        e, loss, d, iin, di = boost_sc95(vin, P_LED, vled, sync=sync)
+        print(f"    Vin {vin:4.1f} V  D={d:.3f}  Ipk={iin+di/2:.2f} A  dI={di:.2f} A  eff={e*100:.2f} %")
+    for frac in (0.5, 0.3):
+        e, *_ = boost_sc95(BAT_V_NOM, P_LED * frac, vled * 0.97, sync=sync)
+        print(f"    {frac*100:3.0f} % brightness  eff={e*100:.2f} %")
+e_async, loss_a, *_ = boost_sc95(BAT_V_NOM, P_LED, vled)
+show("  Loss breakdown, async boost at 12.8 V, 20 W", loss_a, P_LED, e_async)
+e_sync = boost_sc95(BAT_V_NOM, P_LED, vled, sync=True)[0]
+
+# charger with 125 ns minimum dead time and Schottky across Q4
+eff_c2, loss_c2, *_ = buck_losses(18.0, 13.6, 80)
+iout = 80 * eff_c2 / 13.6
+old_dt = 2 * 20e-9 * 100e3 * 0.8 * iout
+new_dt = 2 * 125e-9 * 100e3 * 0.45 * iout
+eff_c2 = (80 - (sum(loss_c2.values()) - old_dt + new_dt)) / 80
+print(f"\n  Charger with 125 ns dead time + Schottky across Q4: {eff_c2*100:.2f} % at 80 W")
+
+print("\n  Duty resolution and dithering (32 MHz / 100 kHz = 320 counts)")
+d = 1 - BAT_V_NOM / (vled + 0.48)
+dvdd = BAT_V_NOM / (1 - d) ** 2          # dVout/dD
+r_dyn = LED_N_SERIES * 0.5               # string dynamic resistance, ohm (estimate)
+step_v = dvdd / 320
+print(f"    one count: Vout step {step_v*1e3:.0f} mV -> LED current step "
+      f"{step_v/r_dyn*1e3:.0f} mA without dithering")
+for bits in (4, 6):
+    print(f"    {bits}-bit sigma-delta dither: {step_v/r_dyn/2**bits*1e3:.1f} mA effective step")
+cout = 4 * 4.7e-6
+f0 = (1 - d) / (2 * 3.14159 * sqrt(100e-6 * cout))
+print(f"    output LC double pole about {f0/1e3:.1f} kHz; firmware loop 10 kHz, crossover 100-200 Hz")
+print(f"    dither in PWM interrupt at 100 kHz -> 4-bit pattern repeats at >= 6.25 kHz,"
+      f" above the {f0/1e3:.1f} kHz LC pole, so the output filter smooths it")
+
+print("\n  ADC (12-bit, 2.048 V internal reference)")
+lsb = 2.048 / 4096
+for name, v in (("Iled full (INA181A1 x20, 0.1 Ohm)", 0.565 * 0.1 * 20),
+                ("Iled 30 %", 0.3 * 0.565 * 0.1 * 20),
+                ("Ichg 5.8 A (INA181A1 x20, 2 mOhm) + 0.3 V REF", 5.8 * 0.002 * 20 + 0.3)):
+    print(f"    {name:<46s} {v:5.3f} V = {v/lsb:5.0f} counts")
+
+print("\n  Chain efficiency, SC95F8523 variant")
+for label, e in (("async boost", e_async), ("sync boost", e_sync)):
+    print(f"    {label}: battery->LED {e*100:.1f} %, panel->LED incl. battery "
+          f"{0.99*eff_c2*BAT_ROUNDTRIP*e*100:.1f} %")

@@ -4,6 +4,9 @@ One PIC microcontroller runs both power stages: the MPPT solar charger
 and the constant-current LED driver. There is no dedicated LED driver IC
 or charger IC.
 
+A version using the SinOne SC95F8523 instead of the PIC is in
+`SC95F8523.md`.
+
 All numbers come from `calc.py` in this folder (output in
 `calc_output.txt`). Loss models are first-order estimates. Treat them as a
 design target and confirm on the bench with the test procedure at the end.

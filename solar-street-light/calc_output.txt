@@ -78,3 +78,55 @@ CHARGER PWM RESOLUTION (firmware duty control)
   32 MHz / 100 kHz = 320 steps, 0.31 % duty per step
   at D=0.70: panel voltage step 86 mV
   at D=0.85: panel voltage step 59 mV
+
+################################################################
+SC95F8523 VARIANT: both converters at 100 kHz (shared PWM period)
+
+  Boost, asynchronous (PWM2 + Schottky)
+    Vin 11.2 V  D=0.688  Ipk=2.24 A  dI=0.77 A  eff=96.11 %
+    Vin 12.8 V  D=0.643  Ipk=2.03 A  dI=0.82 A  eff=96.40 %
+    Vin 14.4 V  D=0.599  Ipk=1.87 A  dI=0.86 A  eff=96.59 %
+     50 % brightness  eff=95.84 %
+     30 % brightness  eff=94.66 %
+
+  Boost, synchronous (PWM2/PWM3 pair)
+    Vin 11.2 V  D=0.684  Ipk=2.22 A  dI=0.77 A  eff=96.96 %
+    Vin 12.8 V  D=0.639  Ipk=2.02 A  dI=0.82 A  eff=97.28 %
+    Vin 14.4 V  D=0.594  Ipk=1.85 A  dI=0.86 A  eff=97.48 %
+     50 % brightness  eff=96.64 %
+     30 % brightness  eff=95.30 %
+
+  Loss breakdown, async boost at 12.8 V, 20 W
+  inductor DCR (40 mOhm)                     107.3 mW
+  inductor core                               60.0 mW
+  Q1 conduction (14 mOhm hot)                 23.7 mW
+  Q1 switching (tr+tf=20 ns)                  58.1 mW
+  Q1 Coss (300 pF)                            19.3 mW
+  gate drive (25 nC, 10 V)                    25.0 mW
+  LED sense resistor (0.1 Ohm)                31.9 mW
+  switch sense, fault only (33 mOhm)          55.8 mW
+  LED disconnect FET (20 mOhm)                 6.4 mW
+  MCU + 2x INA181 + LM2901 (6 mA)             76.8 mW
+  gate driver quiescent                       10.0 mW
+  caps ESR + PCB copper                       35.0 mW
+  Schottky diode                             237.3 mW
+  TOTAL                                      746.6 mW
+  efficiency 96.40 %
+
+  Charger with 125 ns dead time + Schottky across Q4: 98.39 % at 80 W
+
+  Duty resolution and dithering (32 MHz / 100 kHz = 320 counts)
+    one count: Vout step 314 mV -> LED current step 52 mA without dithering
+    4-bit sigma-delta dither: 3.3 mA effective step
+    6-bit sigma-delta dither: 0.8 mA effective step
+    output LC double pole about 1.3 kHz; firmware loop 10 kHz, crossover 100-200 Hz
+    dither in PWM interrupt at 100 kHz -> 4-bit pattern repeats at >= 6.25 kHz, above the 1.3 kHz LC pole, so the output filter smooths it
+
+  ADC (12-bit, 2.048 V internal reference)
+    Iled full (INA181A1 x20, 0.1 Ohm)              1.130 V =  2260 counts
+    Iled 30 %                                      0.339 V =   678 counts
+    Ichg 5.8 A (INA181A1 x20, 2 mOhm) + 0.3 V REF  0.532 V =  1064 counts
+
+  Chain efficiency, SC95F8523 variant
+    async boost: battery->LED 96.4 %, panel->LED incl. battery 90.1 %
+    sync boost: battery->LED 97.3 %, panel->LED incl. battery 91.0 %
