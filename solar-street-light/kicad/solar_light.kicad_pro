@@ -1,0 +1,53 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {},
+      "diff_pair_dimensions": [],
+      "drc_exclusions": [],
+      "rules": {},
+      "track_widths": [],
+      "via_dimensions": []
+    }
+  },
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "solar_light.kicad_pro",
+    "version": 1
+  },
+  "net_settings": {
+    "classes": [],
+    "meta": {
+      "version": 0
+    }
+  },
+  "pcbnew": {
+    "page_layout_descr_file": ""
+  },
+  "sheets": [
+    [
+      "4d1f6c3e-0b55-4c8e-9a51-5f2a1d3c0001",
+      ""
+    ],
+    [
+      "4884aff1-714e-5e41-b9ea-e890d79d550b",
+      "1 MPPT charger"
+    ],
+    [
+      "1980dfcf-6806-5082-b672-89673f2d604a",
+      "2 LED driver"
+    ],
+    [
+      "4f213a6b-5b34-57dc-a0ad-4ae43135db9c",
+      "3 Controller and supplies"
+    ],
+    [
+      "e7aed847-ee15-5121-a0fc-0d7910359861",
+      "4 Drivers, sense, protection"
+    ]
+  ],
+  "text_variables": {}
+}

@@ -112,7 +112,7 @@ def sheet1():
 
     # TVS
     s.dot((2, T))
-    s.vert(2, T, G, elm.Zener().reverse().length(3), 'D3\nSMBJ28A\nTVS')
+    s.vert(2, T, G, elm.Zener().reverse().length(3), 'D3\nSMBJ28CA\nTVS')
 
     # Panel voltage divider (panel side, for dusk/dawn)
     s.wire((2, T), (3.6, T))
@@ -231,7 +231,7 @@ def sheet2():
     s = Sheet()
     T, G = 6.0, 0.0
     s.title((0, 11.6), 'Sheet 2 of 4: LED driver power stage',
-            'Boost, 100 kHz, PWM2 via UCC27517 (sheet 4), 12 LEDs at 0.565 A')
+            'Boost, 100 kHz, PWM2 via UCC27511 (sheet 4), 12 LEDs at 0.565 A')
 
     s.add(elm.Dot(open=True).at((0, T)).color(NETC)
           .label('VBAT', loc='left', fontsize=NFS, color=NETC))
@@ -374,8 +374,8 @@ def sheet3():
         if en:
             s.net(u.EN, en, side='down', length=0.6)
         return u
-    ldo(6.3, 'U8\n10 V LDO', 'Vin ≥ 30 V, Iq < 50 µA', '+10V', en='EN_10V')
-    ldo(1.8, 'U9\n5 V LDO', 'Vin ≥ 30 V, Iq < 50 µA', '+5V')
+    ldo(6.3, 'U8\nLT3010', '9.93 V: 169k / 24.9k on ADJ', '+10V', en='EN_10V')
+    ldo(1.8, 'U9\nLM2936-5.0', '40 V in, 15 µA', '+5V')
     s.divider(X0 + 10.0, 6.8, 2.6, 'R7 47k', 'R8 10k', 'V10_SNS')
     s.net((X0 + 10.0, 6.8), '+10V', side='up', length=0.6)
 
@@ -454,7 +454,7 @@ def sheet3():
 def sheet4():
     s = Sheet()
     s.title((0, 10.6), 'Sheet 4 of 4: gate drivers, current sense, fault comparators',
-            'Pin numbers omitted for U4–U7: take them from each part\'s datasheet')
+            'Pin numbers: see the KiCad project in ../kicad (library symbols)')
 
     # ---- U4 UCC27211 ----
     u4 = s.add(elm.Ic(pins=[P(name='HI', side='left', slot='4/4'),
@@ -482,26 +482,28 @@ def sheet4():
     xb = u4.HB[0] + 0.6
     s.wire(u4.HB, (xb, u4.HB[1]))
     s.add(elm.Capacitor().at((xb, u4.HB[1])).to((xb, u4.HS[1])))
-    s.text((xb + 0.35, u4.HB[1] - 0.05), 'CBOOT 0.22 µF', size=8)
+    s.text((xb + 0.35, u4.HB[1] - 0.05), 'CBOOT 100 nF', size=8)
     s.dot((xb, u4.HS[1]))
     s.net(u4.HS, 'HS', side='right', length=2.8)
 
-    # ---- U7 UCC27517 ----
+    # ---- U7 UCC27511 ----
     u7 = s.add(elm.Ic(pins=[P(name='IN+', side='left', slot='3/3'),
                             P(name='IN−', side='left', slot='2/3'),
                             P(name='VDD', side='left', slot='1/3'),
-                            P(name='OUT', side='right', slot='2/2'),
+                            P(name='OUTH', side='right', slot='2/2'),
+                            P(name='OUTL', side='right', slot='1/2'),
                             P(name='GND', side='bottom')],
                       size=(3.0, 2.6), pinspacing=0.8, leadlen=0.6)
-               .at((3.5, -2.2)).label('U7\nUCC27517\nlow-side\ndriver', loc='center', fontsize=9))
+               .at((3.5, -2.2)).label('U7\nUCC27511\nlow-side\ndriver', loc='center', fontsize=9))
     s.net(u7['IN+'], 'IN_B', side='left', length=2.6)
     s.wire(u7['IN−'], (u7['IN−'][0] - 0.8, u7['IN−'][1]))
     s.gnd((u7['IN−'][0] - 0.8, u7['IN−'][1]))
     s.net(u7.VDD, '+10V', side='left', length=2.6)
     s.gnd(u7.GND)
-    s.add(elm.Resistor().at(u7.OUT).right().length(2.0)
-          .label('4.7 Ω', loc='top', fontsize=9))
-    s.net((u7.OUT[0] + 2.0, u7.OUT[1]), 'GATE_B', side='right', length=0.5)
+    for pin_, val, y_off in (('OUTH', '4.7 Ω on', 0), ('OUTL', '2.2 Ω off', 0)):
+        r = s.add(elm.Resistor().at(u7.absanchors[pin_]).right().length(2.0)
+                  .label(val, loc='top', fontsize=8))
+        s.net(r.end, 'GATE_B', side='right', length=0.5)
     s.text((u7['IN+'][0] - 4.0, u7['IN+'][1] + 0.9), '10k pull-down to GND on IN_B', size=8, color='#444')
     s.text((-0.5, -5.6), 'Decouple U4 and U7 VDD with 1 µF + 100 nF each, at the pins.',
            size=8, color='#444')

@@ -188,9 +188,9 @@ writes the duty cycle; hardware only handles fast faults.
 | Ref | Part | Value / rating |
 |---|---|---|
 | Panel | 80 W mono | Vmp 18–20 V (36–40 cells), Voc ≤ 23 V at 25 °C |
-| TVS | SMBJ28A | Panel input surge |
+| TVS | SMBJ28CA (bidirectional) | Panel input surge |
 | U3 | Ideal diode controller | LM74700-Q1 + one 60 V, ≤ 4 mΩ N-MOSFET: reverse polarity and night back-feed blocking |
-| U4 | Half-bridge driver | UCC27211, 10 V supply, bootstrap 0.22 µF |
+| U4 | Half-bridge driver | UCC27211, 10 V supply, bootstrap 0.1 µF (datasheet range 0.022–0.1 µF) |
 | Q3, Q4 | N-MOSFETs | 60 V, Rds(on) ≤ 5 mΩ, Qg ≤ 30 nC |
 | L2 | Power inductor | 22 µH, Isat ≥ 9 A, DCR ≤ 12 mΩ |
 | D2 | Schottky across Q4 (optional) | 60 V 5 A, for low-current mode |
@@ -278,7 +278,7 @@ when the panel produces nothing.
 | Panel reverse polarity | Ideal-diode FET stays off |
 | Night back-feed into panel | Ideal-diode FET blocks; COG1 shut down at night |
 | Reverse charger current at low light | Low-current mode turns off Q4 below 0.3 A |
-| Surge on panel cable | SMBJ28A TVS; all FETs and caps on that node rated 60 V |
+| Surge on panel cable | SMBJ28CA TVS; all FETs and caps on that node rated 60 V |
 | Open LED string | OVP comparator → COG2 shutdown at 42.5 V |
 | Shorted LED string | Firmware opens Q2; 5 A fuse on the driver input as backup (a boost has a DC path from input to output) |
 | Boost over-current | Comparator peak limit about 3 A, every cycle |
